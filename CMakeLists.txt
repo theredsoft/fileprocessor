@@ -49,8 +49,15 @@ if (Qt6_FOUND)
         src/ui/previewworker.h
         src/ui/renameworker.cpp
         src/ui/renameworker.h
+        src/ui/traycontroller.cpp
+        src/ui/traycontroller.h
+        src/ui/wintaskbar.cpp
+        src/ui/wintaskbar.h
     )
     target_link_libraries(fileprocessor PRIVATE fp_core Qt6::Widgets)
+    if (WIN32)
+        target_link_libraries(fileprocessor PRIVATE ole32)
+    endif()
     if (MSVC)
         target_compile_options(fileprocessor PRIVATE /W4 /utf-8)
     endif()

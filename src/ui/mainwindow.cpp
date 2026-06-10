@@ -1,6 +1,8 @@
 #include "mainwindow.h"
 
 #include <QAction>
+#include <QApplication>
+#include <QCloseEvent>
 #include <QDateTime>
 #include <QDir>
 #include <QFileDialog>
@@ -25,6 +27,8 @@
 #include "models.h"
 #include "previewworker.h"
 #include "renameworker.h"
+#include "traycontroller.h"
+#include "wintaskbar.h"
 
 namespace {
 
@@ -158,6 +162,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(browseButton, &QPushButton::clicked, this, &MainWindow::browseFolder);
     connect(applyButton_, &QPushButton::clicked, this, &MainWindow::applyClicked);
     connect(cancelButton_, &QPushButton::clicked, this, &MainWindow::cancelClicked);
+
+    tray_ = new TrayController(this);
+    connect(tray_, &TrayController::showRequested, this, [this] {
+        showNormal();
+        raise();
+        activateWindow();
+    });
+    connect(tray_, &TrayController::cancelRequested, this,
+            &MainWindow::cancelClicked);
+    connect(tray_, &TrayController::quitRequested, this, [this] {
+        cancelRequested_.store(true);
+        QApplication::quit();
+    });
+    taskbar_ = std::make_unique<WinTaskbarProgress>(this);
 }
 
 MainWindow::~MainWindow() {
@@ -172,6 +190,19 @@ MainWindow::~MainWindow() {
     scanThread_.wait();
     previewThread_.wait();
     renameThread_.wait();
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    if (running_ && tray_->available()) {
+        // The run keeps going in the background; the tray shows its progress.
+        hide();
+        tray_->notify(tr("FileProcessor"),
+                      tr("Переименование продолжается в фоне"), true);
+        event->ignore();
+        return;
+    }
+    event->accept();
+    QApplication::quit();
 }
 
 void MainWindow::browseFolder() {
@@ -333,6 +364,11 @@ void MainWindow::onRenameProgress(quint64 runId, qsizetype processed,
             static_cast<qint64>(static_cast<double>(total - processed) / rate);
         etaLabel_->setText(tr("осталось ~%1").arg(formatEta(remaining)));
     }
+    const int percent =
+        total > 0 ? static_cast<int>(processed * 100 / total) : 0;
+    tray_->setProgress(percent, etaLabel_->text());
+    taskbar_->setProgress(static_cast<quint64>(processed),
+                          static_cast<quint64>(total));
 }
 
 void MainWindow::onRenameFinished(quint64 runId, qsizetype done,
@@ -351,6 +387,16 @@ void MainWindow::onRenameFinished(quint64 runId, qsizetype done,
         errorLabel_->setText(errors.join(QStringLiteral("\n")));
         errorLabel_->setVisible(true);
     }
+
+    const bool success = failed == 0 && !cancelled;
+    tray_->setState(failed > 0 ? TrayController::State::Error
+                               : TrayController::State::Done);
+    tray_->notify(tr("FileProcessor"), summary, success);
+    if (failed > 0)
+        taskbar_->setError();
+    else
+        taskbar_->clear();
+
     startScan();  // show the folder's new state
 }
 
@@ -363,6 +409,10 @@ void MainWindow::showTemplateError(qsizetype pos, const QString& message) {
 
 void MainWindow::setRunning(bool running) {
     running_ = running;
+    if (running) {
+        tray_->setState(TrayController::State::Working);
+        taskbar_->clear();
+    }
     folderEdit_->setEnabled(!running);
     templateEdit_->setEnabled(!running);
     applyButton_->setEnabled(!running && !pendingOps_.isEmpty());
