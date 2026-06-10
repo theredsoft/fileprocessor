@@ -191,9 +191,14 @@ void MainWindow::onScanFinished(quint64 generation, qsizetype totalCount) {
 }
 
 void MainWindow::onPreviewReady(quint64 generation,
-                                const QList<PreviewItem>& items) {
+                                const QList<PreviewItem>& items,
+                                qsizetype renameCount, qsizetype conflictCount) {
     if (generation != previewGeneration_.load()) return;
     previewModel_->setItems(items);
+    statusBar()->showMessage(tr("Файлов: %1 · переименований: %2 · конфликтов: %3")
+                                 .arg(items.size())
+                                 .arg(renameCount)
+                                 .arg(conflictCount));
 }
 
 void MainWindow::onParseFailed(quint64 generation, qsizetype pos,

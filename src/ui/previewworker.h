@@ -21,7 +21,8 @@ public:
                  const QString& folderName, const QList<FileEntry>& files);
 
 signals:
-    void ready(quint64 generation, const QList<PreviewItem>& items);
+    void ready(quint64 generation, const QList<PreviewItem>& items,
+               qsizetype renameCount, qsizetype conflictCount);
     void parseFailed(quint64 generation, qsizetype pos, const QString& message);
 
 private:

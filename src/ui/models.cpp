@@ -35,8 +35,12 @@ QVariant PreviewListModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || index.row() >= items_.size()) return {};
     const PreviewItem& item = items_.at(index.row());
     if (role == Qt::DisplayRole) return item.text;
-    if (role == Qt::ForegroundRole && item.isError)
-        return QBrush(QColor(0xc0, 0x39, 0x2b));
+    if (role == Qt::ForegroundRole) {
+        if (item.kind == PreviewItem::Kind::Conflict)
+            return QBrush(QColor(0xc0, 0x39, 0x2b));
+        if (item.kind == PreviewItem::Kind::Unchanged)
+            return QBrush(QColor(0x88, 0x88, 0x88));
+    }
     return {};
 }
 
