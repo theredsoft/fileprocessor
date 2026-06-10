@@ -99,7 +99,10 @@ Photo_{photodate = YYYYMMDD OR filedate = YYYYMMDD}_{number = 001}.{ext}
 | 5 | RenameExecutor: пул потоков, прогресс, отмена, ETA, журнал/undo | переименование 10k без фриза | готово |
 | 6 | Tray-иконка, уведомления, таскбар-прогресс | фоновая работа | готово |
 | 7 | EXIF-токен `{photodate}` с кэшем | поддержка фото | готово |
-| 8 | Полировка: история шаблонов, пресеты, windeployqt-пакет, README | релиз v1.0 | |
+| 8 | Полировка: история шаблонов, пресеты, windeployqt-пакет, README | релиз v1.0 | готово* |
+
+\* установщик и Windows-специфика (таскбар, длинные пути) требуют
+ручной проверки на реальной Windows — см. docs/build-windows.md.
 
 ## 8. Структура репозитория
 
@@ -110,9 +113,10 @@ fileprocessor/
 ├── docs/
 │   ├── plan.md                 # этот документ
 │   └── template-language.md    # спецификация псевдоязыка
+├── packaging/windows/          # build.ps1, Inno Setup
 ├── src/
 │   ├── core/                   # парсер, планировщик, исполнитель (без Qt)
-│   ├── infra/                  # exif, fs, журнал
-│   └── ui/                     # окно, модели, tray
+│   ├── infra/                  # exif
+│   └── ui/                     # окно, модели, tray, воркеры
 └── tests/                      # тесты core
 ```
