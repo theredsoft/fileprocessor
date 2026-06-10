@@ -11,6 +11,7 @@ add_library(fp_core STATIC
     src/core/planner/renameplanner.cpp
     src/core/template/template.cpp
     src/core/template/textutil.cpp
+    src/infra/exifreader.cpp
 )
 find_package(Threads REQUIRED)
 target_link_libraries(fp_core PUBLIC Threads::Threads)
@@ -25,6 +26,7 @@ endif()
 enable_testing()
 add_executable(fp_core_tests
     tests/executor_tests.cpp
+    tests/exif_tests.cpp
     tests/main.cpp
     tests/planner_tests.cpp
     tests/template_tests.cpp

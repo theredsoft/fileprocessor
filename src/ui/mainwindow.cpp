@@ -254,14 +254,15 @@ void MainWindow::startPreview() {
     }
     if (files_.isEmpty()) return;
 
+    statusBar()->showMessage(tr("Вычисление имён…"));
     const QString templateText = templateEdit_->text();
-    const QString folderName = QDir(folderEdit_->text().trimmed()).dirName();
+    const QString folderPath = folderEdit_->text().trimmed();
     const QList<FileEntry> snapshot = files_;  // implicit sharing, O(1)
     QMetaObject::invokeMethod(
         previewWorker_,
-        [worker = previewWorker_, generation, templateText, folderName,
+        [worker = previewWorker_, generation, templateText, folderPath,
          snapshot] {
-            worker->compute(generation, templateText, folderName, snapshot);
+            worker->compute(generation, templateText, folderPath, snapshot);
         },
         Qt::QueuedConnection);
 }

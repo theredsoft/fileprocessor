@@ -368,6 +368,15 @@ Template Template::parse(std::string_view text) {
     return t;
 }
 
+bool Template::uses(Source source) const {
+    for (const auto& node : nodes_) {
+        if (node.isText) continue;
+        for (const auto& v : node.variants)
+            if (v.source == source) return true;
+    }
+    return false;
+}
+
 std::string Template::apply(const FileContext& ctx) const {
     std::string out;
     for (const auto& node : nodes_) {

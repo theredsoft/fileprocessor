@@ -68,6 +68,10 @@ public:
     static Template parse(std::string_view text);     // throws ParseError
     std::string apply(const FileContext& ctx) const;  // throws EvalError
 
+    // True if any variant references the source — lets callers skip
+    // expensive lookups (EXIF) for templates that never need them.
+    bool uses(Source source) const;
+
     const std::vector<Node>& nodes() const { return nodes_; }
 
 private:
