@@ -6,10 +6,12 @@
 #include <QThread>
 
 #include <atomic>
+#include <memory>
 
 #include "fileentry.h"
 
 class QAction;
+class QCloseEvent;
 class QLabel;
 class QLineEdit;
 class QListView;
@@ -22,6 +24,8 @@ class FolderScanner;
 class PreviewListModel;
 class PreviewWorker;
 class RenameWorker;
+class TrayController;
+class WinTaskbarProgress;
 
 // Folder picker, template editor, live two-pane preview and the rename run
 // itself. All heavy work lives in worker threads; results are matched
@@ -31,6 +35,9 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private slots:
     void browseFolder();
@@ -69,6 +76,8 @@ private:
     QProgressBar* progressBar_ = nullptr;
     QLabel* etaLabel_ = nullptr;
     QAction* undoAction_ = nullptr;
+    TrayController* tray_ = nullptr;
+    std::unique_ptr<WinTaskbarProgress> taskbar_;
 
     QThread scanThread_;
     QThread previewThread_;
