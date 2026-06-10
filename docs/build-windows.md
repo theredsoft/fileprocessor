@@ -50,7 +50,8 @@ msvc2019_64, CMake 3.31, Ninja 1.12):
 - tray-уведомления Windows 10/11;
 - длинные пути (>260 символов) на реальных данных.
 
-Примечание: `windeployqt` без окружения vcvars не копирует
-msvcp140/vcruntime140 в dist — на чистой машине поставьте
-[VC++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-или запускайте build.ps1 из Developer PowerShell.
+Примечание: `windeployqt` сам не копирует msvcp140/vcruntime140 —
+build.ps1 докладывает их в dist из `VC\Redist\MSVC\...\VC143.CRT`,
+после чего каталог dist полностью переносим: копируете на любой
+64-битный Windows 10 (1809+)/11/Server 2016+ и запускаете
+fileprocessor.exe без установки чего-либо.

@@ -28,6 +28,18 @@ Copy-Item "$buildDir\fileprocessor.exe" $distDir
 & "$QtDir\bin\windeployqt.exe" --release --no-translations `
     --no-system-d3d-compiler --no-opengl-sw "$distDir\fileprocessor.exe"
 
+# VC-runtime в dist: иначе на машине без VS/redist приложение не стартует.
+$vcCrt = @(
+    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT",
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT"
+) | ForEach-Object { Get-ChildItem $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
+if ($vcCrt) {
+    Copy-Item "$($vcCrt.FullName)\*.dll" $distDir
+    Write-Host "VC runtime добавлен из: $($vcCrt.FullName)"
+} else {
+    Write-Warning "VC143.CRT не найден — на целевых машинах потребуется vc_redist.x64.exe"
+}
+
 Write-Host "Готово: $distDir"
 
 if ($Installer) {
