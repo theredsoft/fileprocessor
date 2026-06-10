@@ -46,11 +46,15 @@ void PreviewWorker::compute(quint64 generation, const QString& templateText,
 
     QList<PreviewItem> items;
     items.reserve(static_cast<qsizetype>(plan.items.size()));
+    QList<RenameOp> ops;
+    ops.reserve(static_cast<qsizetype>(plan.renameCount));
     for (const fp::plan::PlanItem& p : plan.items) {
         switch (p.issue) {
         case fp::plan::Issue::None:
             items.append({QString::fromStdString(p.newName),
                           PreviewItem::Kind::Rename});
+            ops.append({QString::fromStdString(p.oldName),
+                        QString::fromStdString(p.newName)});
             break;
         case fp::plan::Issue::Unchanged:
             items.append({QString::fromStdString(p.newName),
@@ -63,5 +67,5 @@ void PreviewWorker::compute(quint64 generation, const QString& templateText,
         }
     }
     emit ready(generation, items, static_cast<qsizetype>(plan.renameCount),
-               static_cast<qsizetype>(plan.conflictCount));
+               static_cast<qsizetype>(plan.conflictCount), ops);
 }

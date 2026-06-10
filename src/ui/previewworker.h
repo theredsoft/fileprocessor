@@ -22,7 +22,8 @@ public:
 
 signals:
     void ready(quint64 generation, const QList<PreviewItem>& items,
-               qsizetype renameCount, qsizetype conflictCount);
+               qsizetype renameCount, qsizetype conflictCount,
+               const QList<RenameOp>& ops);
     void parseFailed(quint64 generation, qsizetype pos, const QString& message);
 
 private:

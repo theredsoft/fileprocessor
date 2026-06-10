@@ -14,6 +14,13 @@ struct FileEntry {
 };
 Q_DECLARE_METATYPE(FileEntry)
 
+// One rename operation, as planned by the preview pass.
+struct RenameOp {
+    QString from;
+    QString to;
+};
+Q_DECLARE_METATYPE(RenameOp)
+
 // One row of the right-hand (preview) pane.
 struct PreviewItem {
     enum class Kind { Rename, Unchanged, Conflict };
