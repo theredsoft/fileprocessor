@@ -1,3 +1,7 @@
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS  // std::sscanf is used portably and safely here
+#endif
+
 #include "infra/exifreader.h"
 
 #include <cstdio>
@@ -7,6 +11,7 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX  // windows.h min/max macros break std::min/std::max
 #include <windows.h>
 
 #include <filesystem>

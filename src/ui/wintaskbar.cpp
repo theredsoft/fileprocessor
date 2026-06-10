@@ -4,6 +4,8 @@
 
 #ifdef _WIN32
 
+#define NOMINMAX  // windows.h min/max macros break std::min/std::max
+
 #include <shobjidl.h>
 #include <windows.h>
 
