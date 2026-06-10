@@ -3,8 +3,10 @@
 #include <QAction>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -13,9 +15,11 @@
 #include <QListView>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSettings>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -32,10 +36,32 @@
 
 namespace {
 
+constexpr int kHistoryLimit = 10;
+
+const QStringList& presetTemplates() {
+    static const QStringList presets = {
+        QStringLiteral("{folder}_{number = 0001}.{ext}"),
+        QStringLiteral(
+            "Photo_{photodate = YYYYMMDD OR filedate = YYYYMMDD}_{number = 001}.{ext}"),
+        QStringLiteral("{filedate = YYYY-MM-DD}_{name}.{ext}"),
+        QStringLiteral("{name AND lowercase AND nospaces}.{ext}"),
+    };
+    return presets;
+}
+
 QString formatEta(qint64 msRemaining) {
     const qint64 s = msRemaining / 1000;
     return QStringLiteral("%1:%2").arg(s / 60).arg(s % 60, 2, 10,
                                        QLatin1Char('0'));
+}
+
+QStringList pushHistory(QStringList list, const QString& value) {
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty()) return list;
+    list.removeAll(trimmed);
+    list.prepend(trimmed);
+    while (list.size() > kHistoryLimit) list.removeLast();
+    return list;
 }
 
 }  // namespace
@@ -52,22 +78,33 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     undoAction_ = editMenu->addAction(tr("Отменить последнее переименование"));
     undoAction_->setEnabled(false);
     connect(undoAction_, &QAction::triggered, this, &MainWindow::undoTriggered);
+    auto* helpMenu = menuBar()->addMenu(tr("&Справка"));
+    QAction* tokensAction = helpMenu->addAction(tr("Токены шаблона…"));
+    connect(tokensAction, &QAction::triggered, this, &MainWindow::showTokenHelp);
 
     auto* central = new QWidget(this);
     auto* layout = new QVBoxLayout(central);
 
     auto* folderRow = new QHBoxLayout();
     folderRow->addWidget(new QLabel(tr("Папка:")));
-    folderEdit_ = new QLineEdit();
-    folderRow->addWidget(folderEdit_, 1);
+    folderCombo_ = new QComboBox();
+    folderCombo_->setEditable(true);
+    folderCombo_->setInsertPolicy(QComboBox::NoInsert);
+    folderRow->addWidget(folderCombo_, 1);
     auto* browseButton = new QPushButton(tr("Обзор…"));
     folderRow->addWidget(browseButton);
     layout->addLayout(folderRow);
 
     auto* templateRow = new QHBoxLayout();
     templateRow->addWidget(new QLabel(tr("Шаблон:")));
-    templateEdit_ = new QLineEdit(QStringLiteral("{folder}_{number = 0001}.{ext}"));
-    templateRow->addWidget(templateEdit_, 1);
+    templateCombo_ = new QComboBox();
+    templateCombo_->setEditable(true);
+    templateCombo_->setInsertPolicy(QComboBox::NoInsert);
+    templateRow->addWidget(templateCombo_, 1);
+    auto* helpButton = new QPushButton(QStringLiteral("?"));
+    helpButton->setFixedWidth(28);
+    helpButton->setToolTip(tr("Справка по токенам шаблона"));
+    templateRow->addWidget(helpButton);
     layout->addLayout(templateRow);
 
     errorLabel_ = new QLabel();
@@ -149,17 +186,18 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     scanDebounce_->setSingleShot(true);
     scanDebounce_->setInterval(300);
     connect(scanDebounce_, &QTimer::timeout, this, &MainWindow::startScan);
-    connect(folderEdit_, &QLineEdit::textChanged, scanDebounce_,
+    connect(folderCombo_, &QComboBox::editTextChanged, scanDebounce_,
             qOverload<>(&QTimer::start));
 
     previewDebounce_ = new QTimer(this);
     previewDebounce_->setSingleShot(true);
     previewDebounce_->setInterval(300);
     connect(previewDebounce_, &QTimer::timeout, this, &MainWindow::startPreview);
-    connect(templateEdit_, &QLineEdit::textChanged, previewDebounce_,
+    connect(templateCombo_, &QComboBox::editTextChanged, previewDebounce_,
             qOverload<>(&QTimer::start));
 
     connect(browseButton, &QPushButton::clicked, this, &MainWindow::browseFolder);
+    connect(helpButton, &QPushButton::clicked, this, &MainWindow::showTokenHelp);
     connect(applyButton_, &QPushButton::clicked, this, &MainWindow::applyClicked);
     connect(cancelButton_, &QPushButton::clicked, this, &MainWindow::cancelClicked);
 
@@ -176,9 +214,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         QApplication::quit();
     });
     taskbar_ = std::make_unique<WinTaskbarProgress>(this);
+
+    loadSettings();
 }
 
 MainWindow::~MainWindow() {
+    saveSettings();
     // Invalidate generations and raise the cancel flag so in-flight work
     // bails out quickly, then drain the threads.
     scanGeneration_.fetch_add(1);
@@ -207,8 +248,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 
 void MainWindow::browseFolder() {
     const QString dir = QFileDialog::getExistingDirectory(
-        this, tr("Выбор рабочей папки"), folderEdit_->text());
-    if (!dir.isEmpty()) folderEdit_->setText(dir);
+        this, tr("Выбор рабочей папки"), folderCombo_->currentText());
+    if (!dir.isEmpty()) folderCombo_->setCurrentText(dir);
 }
 
 void MainWindow::startScan() {
@@ -222,7 +263,7 @@ void MainWindow::startScan() {
     previewModel_->clear();
     errorLabel_->setVisible(false);
 
-    const QString dirPath = folderEdit_->text().trimmed();
+    const QString dirPath = folderCombo_->currentText().trimmed();
     if (dirPath.isEmpty() || !QDir(dirPath).exists()) {
         statusBar()->showMessage(tr("Папка не выбрана"));
         return;
@@ -246,7 +287,7 @@ void MainWindow::startPreview() {
 
     // Parse on the UI thread first: instant error feedback while typing.
     try {
-        fp::tmpl::Template::parse(templateEdit_->text().toStdString());
+        fp::tmpl::Template::parse(templateCombo_->currentText().toStdString());
     } catch (const fp::tmpl::ParseError& e) {
         showTemplateError(static_cast<qsizetype>(e.pos),
                           QString::fromUtf8(e.what()));
@@ -255,8 +296,8 @@ void MainWindow::startPreview() {
     if (files_.isEmpty()) return;
 
     statusBar()->showMessage(tr("Вычисление имён…"));
-    const QString templateText = templateEdit_->text();
-    const QString folderPath = folderEdit_->text().trimmed();
+    const QString templateText = templateCombo_->currentText();
+    const QString folderPath = folderCombo_->currentText().trimmed();
     const QList<FileEntry> snapshot = files_;  // implicit sharing, O(1)
     QMetaObject::invokeMethod(
         previewWorker_,
@@ -306,17 +347,19 @@ void MainWindow::onParseFailed(quint64 generation, qsizetype pos,
 
 void MainWindow::applyClicked() {
     if (running_ || pendingOps_.isEmpty()) return;
+    undoRun_ = false;
     setRunning(true);
     cancelRequested_.store(false);
     const quint64 runId = ++runId_;
     lastJournalPath_ = newJournalPath();
+    lastRunFolder_ = folderCombo_->currentText().trimmed();
     progressBar_->setRange(0, static_cast<int>(pendingOps_.size()));
     progressBar_->setValue(0);
     etaLabel_->setText(tr("оценка…"));
     runTimer_.start();
     statusBar()->showMessage(tr("Переименование…"));
 
-    const QString folder = folderEdit_->text().trimmed();
+    const QString folder = lastRunFolder_;
     const QList<RenameOp> ops = pendingOps_;
     const QString journal = lastJournalPath_;
     QMetaObject::invokeMethod(
@@ -334,7 +377,9 @@ void MainWindow::cancelClicked() {
 }
 
 void MainWindow::undoTriggered() {
-    if (running_ || lastJournalPath_.isEmpty()) return;
+    if (running_ || lastJournalPath_.isEmpty() || lastRunFolder_.isEmpty())
+        return;
+    undoRun_ = true;
     setRunning(true);
     cancelRequested_.store(false);
     const quint64 runId = ++runId_;
@@ -343,7 +388,7 @@ void MainWindow::undoTriggered() {
     runTimer_.start();
     statusBar()->showMessage(tr("Откат переименования…"));
 
-    const QString folder = folderEdit_->text().trimmed();
+    const QString folder = lastRunFolder_;
     const QString journal = lastJournalPath_;
     QMetaObject::invokeMethod(
         renameWorker_,
@@ -377,7 +422,20 @@ void MainWindow::onRenameFinished(quint64 runId, qsizetype done,
                                   bool cancelled, const QStringList& errors) {
     if (runId != runId_) return;
     setRunning(false);
-    undoAction_->setEnabled(done > 0 && !lastJournalPath_.isEmpty());
+
+    QSettings settings;
+    if (undoRun_) {
+        // The journal has been replayed; it must not be replayed twice.
+        lastJournalPath_.clear();
+        settings.remove(QStringLiteral("undo/journal"));
+        settings.remove(QStringLiteral("undo/folder"));
+        undoAction_->setEnabled(false);
+    } else if (done > 0) {
+        settings.setValue(QStringLiteral("undo/journal"), lastJournalPath_);
+        settings.setValue(QStringLiteral("undo/folder"), lastRunFolder_);
+        undoAction_->setEnabled(true);
+        rememberSuccessfulRun();
+    }
 
     QString summary = cancelled
                           ? tr("Прервано: выполнено %1, пропущено %2").arg(done).arg(skipped)
@@ -401,6 +459,39 @@ void MainWindow::onRenameFinished(quint64 runId, qsizetype done,
     startScan();  // show the folder's new state
 }
 
+void MainWindow::showTokenHelp() {
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Токены шаблона"));
+    box.setTextFormat(Qt::RichText);
+    box.setText(tr(
+        "<h3>Источники</h3>"
+        "<pre>"
+        "{folder}     имя текущей папки\n"
+        "{name}       имя файла без расширения\n"
+        "{ext}        расширение файла\n"
+        "{number}     порядковый номер\n"
+        "{filedate}   дата изменения файла\n"
+        "{photodate}  дата съёмки (EXIF)\n"
+        "\"текст\"      строковый литерал"
+        "</pre>"
+        "<h3>Связки</h3>"
+        "<pre>"
+        "=    формат:   {number = 0001}, {filedate = YYYY-MM-DD}\n"
+        "AND  параметр: {number = 0010 AND step = 5},\n"
+        "               {name AND uppercase AND first 8}\n"
+        "OR   запасной: {photodate OR filedate OR \"nodate\"}"
+        "</pre>"
+        "<h3>Примеры</h3>"
+        "<pre>"
+        "{folder}_{number = 0001}.{ext}\n"
+        "Photo_{photodate = YYYYMMDD OR filedate = YYYYMMDD}_{number = 001}.{ext}\n"
+        "{name AND lowercase AND nospaces}.{ext}"
+        "</pre>"
+        "<p>Литеральные скобки: <code>{{</code> и <code>}}</code>. "
+        "Модификаторы: uppercase, lowercase, nospaces, first N, step = N.</p>"));
+    box.exec();
+}
+
 void MainWindow::showTemplateError(qsizetype pos, const QString& message) {
     errorLabel_->setText(tr("Ошибка в шаблоне (символ %1): %2")
                              .arg(pos + 1)
@@ -414,8 +505,8 @@ void MainWindow::setRunning(bool running) {
         tray_->setState(TrayController::State::Working);
         taskbar_->clear();
     }
-    folderEdit_->setEnabled(!running);
-    templateEdit_->setEnabled(!running);
+    folderCombo_->setEnabled(!running);
+    templateCombo_->setEnabled(!running);
     applyButton_->setEnabled(!running && !pendingOps_.isEmpty());
     undoAction_->setEnabled(false);
     cancelButton_->setVisible(running);
@@ -432,4 +523,71 @@ QString MainWindow::newJournalPath() const {
     return dir + QStringLiteral("/journal-%1.log")
                      .arg(QDateTime::currentDateTime().toString(
                          QStringLiteral("yyyyMMdd-hhmmss-zzz")));
+}
+
+void MainWindow::loadSettings() {
+    QSettings settings;
+    restoreGeometry(settings.value(QStringLiteral("ui/geometry")).toByteArray());
+    folderHistory_ =
+        settings.value(QStringLiteral("history/folders")).toStringList();
+    templateHistory_ =
+        settings.value(QStringLiteral("history/templates")).toStringList();
+
+    QString lastTemplate =
+        settings.value(QStringLiteral("ui/lastTemplate")).toString();
+    if (lastTemplate.isEmpty()) lastTemplate = presetTemplates().first();
+    populateTemplateCombo(lastTemplate);
+    populateFolderCombo(
+        settings.value(QStringLiteral("ui/lastFolder")).toString());
+
+    // Undo survives a restart while its journal file is still around.
+    const QString journal =
+        settings.value(QStringLiteral("undo/journal")).toString();
+    const QString folder =
+        settings.value(QStringLiteral("undo/folder")).toString();
+    if (!journal.isEmpty() && !folder.isEmpty() && QFile::exists(journal)) {
+        lastJournalPath_ = journal;
+        lastRunFolder_ = folder;
+        undoAction_->setEnabled(true);
+    }
+}
+
+void MainWindow::saveSettings() const {
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/geometry"), saveGeometry());
+    settings.setValue(QStringLiteral("ui/lastFolder"),
+                      folderCombo_->currentText().trimmed());
+    settings.setValue(QStringLiteral("ui/lastTemplate"),
+                      templateCombo_->currentText());
+    settings.setValue(QStringLiteral("history/folders"), folderHistory_);
+    settings.setValue(QStringLiteral("history/templates"), templateHistory_);
+}
+
+void MainWindow::rememberSuccessfulRun() {
+    folderHistory_ = pushHistory(folderHistory_, lastRunFolder_);
+    templateHistory_ =
+        pushHistory(templateHistory_, templateCombo_->currentText());
+    populateTemplateCombo(templateCombo_->currentText());
+    populateFolderCombo(folderCombo_->currentText());
+    saveSettings();
+}
+
+void MainWindow::populateTemplateCombo(const QString& keepText) {
+    const QSignalBlocker blocker(templateCombo_);
+    templateCombo_->clear();
+    templateCombo_->addItems(templateHistory_);
+    if (!templateHistory_.isEmpty())
+        templateCombo_->insertSeparator(templateCombo_->count());
+    for (const QString& preset : presetTemplates())
+        if (!templateHistory_.contains(preset)) templateCombo_->addItem(preset);
+    templateCombo_->setCurrentText(keepText);
+}
+
+void MainWindow::populateFolderCombo(const QString& keepText) {
+    const QSignalBlocker blocker(folderCombo_);
+    folderCombo_->clear();
+    folderCombo_->addItems(folderHistory_);
+    folderCombo_->setCurrentText(keepText);
+    // The blocker suppressed the change signal; kick the scan explicitly.
+    if (!keepText.trimmed().isEmpty()) scanDebounce_->start();
 }

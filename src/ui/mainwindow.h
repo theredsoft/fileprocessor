@@ -12,8 +12,8 @@
 
 class QAction;
 class QCloseEvent;
+class QComboBox;
 class QLabel;
-class QLineEdit;
 class QListView;
 class QProgressBar;
 class QPushButton;
@@ -56,14 +56,20 @@ private slots:
     void onRenameFinished(quint64 runId, qsizetype done, qsizetype failed,
                           qsizetype skipped, bool cancelled,
                           const QStringList& errors);
+    void showTokenHelp();
 
 private:
     void showTemplateError(qsizetype pos, const QString& message);
     void setRunning(bool running);
     QString newJournalPath() const;
+    void loadSettings();
+    void saveSettings() const;
+    void rememberSuccessfulRun();
+    void populateTemplateCombo(const QString& keepText);
+    void populateFolderCombo(const QString& keepText);
 
-    QLineEdit* folderEdit_ = nullptr;
-    QLineEdit* templateEdit_ = nullptr;
+    QComboBox* folderCombo_ = nullptr;
+    QComboBox* templateCombo_ = nullptr;
     QLabel* errorLabel_ = nullptr;
     QListView* currentView_ = nullptr;
     QListView* previewView_ = nullptr;
@@ -90,8 +96,12 @@ private:
     std::atomic<bool> cancelRequested_{false};
     quint64 runId_ = 0;
     bool running_ = false;
+    bool undoRun_ = false;  // current run is an undo, not a rename
     QList<FileEntry> files_;
     QList<RenameOp> pendingOps_;
     QString lastJournalPath_;
+    QString lastRunFolder_;  // undo must target the folder of the last run
+    QStringList folderHistory_;
+    QStringList templateHistory_;
     QElapsedTimer runTimer_;
 };
