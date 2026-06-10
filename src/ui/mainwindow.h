@@ -34,7 +34,8 @@ private slots:
     void startPreview();
     void onScanBatch(quint64 generation, const QList<FileEntry>& entries);
     void onScanFinished(quint64 generation, qsizetype totalCount);
-    void onPreviewReady(quint64 generation, const QList<PreviewItem>& items);
+    void onPreviewReady(quint64 generation, const QList<PreviewItem>& items,
+                        qsizetype renameCount, qsizetype conflictCount);
     void onParseFailed(quint64 generation, qsizetype pos, const QString& message);
 
 private:

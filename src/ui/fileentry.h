@@ -16,7 +16,8 @@ Q_DECLARE_METATYPE(FileEntry)
 
 // One row of the right-hand (preview) pane.
 struct PreviewItem {
+    enum class Kind { Rename, Unchanged, Conflict };
     QString text;
-    bool isError = false;
+    Kind kind = Kind::Rename;
 };
 Q_DECLARE_METATYPE(PreviewItem)

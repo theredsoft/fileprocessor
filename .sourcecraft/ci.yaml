@@ -14,7 +14,10 @@ workflows:
             script:
               - g++ -std=c++20 -Wall -Wextra -Werror -Isrc -Itests
                 -o fp_core_tests
+                src/core/planner/renameplanner.cpp
                 src/core/template/template.cpp
                 src/core/template/textutil.cpp
+                tests/main.cpp
+                tests/planner_tests.cpp
                 tests/template_tests.cpp
               - ./fp_core_tests

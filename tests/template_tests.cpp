@@ -174,5 +174,3 @@ TEST(parse_errors) {
     CHECK_THROWS_AS(Template::parse("{\"abc}"), ParseError);          // unterminated quote
     CHECK_THROWS_AS(Template::parse("{\"x\" AND uppercase}"), ParseError);
 }
-
-int main() { return minitest::run(); }

@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Core: template engine, planner, executor. Pure C++, no Qt — builds and
 # tests everywhere, the Qt UI is linked on top of it.
 add_library(fp_core STATIC
+    src/core/planner/renameplanner.cpp
     src/core/template/template.cpp
     src/core/template/textutil.cpp
 )
@@ -19,7 +20,11 @@ else()
 endif()
 
 enable_testing()
-add_executable(fp_core_tests tests/template_tests.cpp)
+add_executable(fp_core_tests
+    tests/main.cpp
+    tests/planner_tests.cpp
+    tests/template_tests.cpp
+)
 target_link_libraries(fp_core_tests PRIVATE fp_core)
 add_test(NAME core COMMAND fp_core_tests)
 
