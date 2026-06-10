@@ -28,9 +28,16 @@ find_package(Qt6 COMPONENTS Widgets QUIET)
 if (Qt6_FOUND)
     set(CMAKE_AUTOMOC ON)
     add_executable(fileprocessor WIN32
+        src/ui/fileentry.h
+        src/ui/folderscanner.cpp
+        src/ui/folderscanner.h
         src/ui/main.cpp
         src/ui/mainwindow.cpp
         src/ui/mainwindow.h
+        src/ui/models.cpp
+        src/ui/models.h
+        src/ui/previewworker.cpp
+        src/ui/previewworker.h
     )
     target_link_libraries(fileprocessor PRIVATE fp_core Qt6::Widgets)
     if (MSVC)
