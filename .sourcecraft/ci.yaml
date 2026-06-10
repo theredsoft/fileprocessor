@@ -12,11 +12,13 @@ workflows:
           - name: build-and-run-tests
             image: docker.io/library/gcc:14
             script:
-              - g++ -std=c++20 -Wall -Wextra -Werror -Isrc -Itests
+              - g++ -std=c++20 -Wall -Wextra -Werror -Isrc -Itests -pthread
                 -o fp_core_tests
+                src/core/exec/renameexecutor.cpp
                 src/core/planner/renameplanner.cpp
                 src/core/template/template.cpp
                 src/core/template/textutil.cpp
+                tests/executor_tests.cpp
                 tests/main.cpp
                 tests/planner_tests.cpp
                 tests/template_tests.cpp
