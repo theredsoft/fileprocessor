@@ -33,12 +33,24 @@ cd packaging\windows
 в `dist\` через `windeployqt` и (с флагом `-Installer`) собирает
 установщик Inno Setup.
 
-## Что проверить на реальной Windows
+## Статус проверки на Windows
 
-Код разрабатывался кроссплатформенно; Windows-специфика покрыта
-условной компиляцией и требует ручной проверки на месте:
+Проверено 2026-06-10 на Windows Server 2022 (MSVC 19.44, Qt 6.7.3
+msvc2019_64, CMake 3.31, Ninja 1.12):
 
-- прогресс на кнопке таскбара (`ITaskbarList3`, src/ui/wintaskbar.cpp);
-- длинные пути (`\\?\`-префикс в src/core/exec/renameexecutor.cpp);
-- кириллические имена файлов (конвертация UTF-8 → UTF-16);
-- поведение tray-уведомлений Windows 10/11.
+- [x] полная сборка Release (fp_core, тесты, GUI) — чисто, без warnings;
+- [x] все 52 юнит-теста, включая executor-тесты с реальными
+      переименованиями на NTFS;
+- [x] `windeployqt` собирает работоспособный dist (~25 МБ);
+- [x] приложение запускается (smoke на offscreen-платформе).
+
+Требует интерактивной проверки (нужен рабочий стол):
+
+- прогресс на кнопке таскбара (`ITaskbarList3`);
+- tray-уведомления Windows 10/11;
+- длинные пути (>260 символов) на реальных данных.
+
+Примечание: `windeployqt` без окружения vcvars не копирует
+msvcp140/vcruntime140 в dist — на чистой машине поставьте
+[VC++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+или запускайте build.ps1 из Developer PowerShell.
