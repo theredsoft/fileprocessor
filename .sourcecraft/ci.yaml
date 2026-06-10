@@ -18,7 +18,9 @@ workflows:
                 src/core/planner/renameplanner.cpp
                 src/core/template/template.cpp
                 src/core/template/textutil.cpp
+                src/infra/exifreader.cpp
                 tests/executor_tests.cpp
+                tests/exif_tests.cpp
                 tests/main.cpp
                 tests/planner_tests.cpp
                 tests/template_tests.cpp

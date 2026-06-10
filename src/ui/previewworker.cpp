@@ -1,10 +1,30 @@
 #include "previewworker.h"
 
+#include <QDir>
+
 #include "core/planner/renameplanner.h"
-#include "core/template/template.h"
+#include "infra/exifreader.h"
+
+std::optional<fp::tmpl::DateTime> PreviewWorker::photoDateFor(
+    const QString& folderPath, const FileEntry& f) {
+    if (folderPath != cachedFolder_) {
+        exifCache_.clear();
+        cachedFolder_ = folderPath;
+    }
+    const QString key =
+        f.fileName + QLatin1Char('#') +
+        QString::number(f.lastModified.toMSecsSinceEpoch());
+    auto it = exifCache_.constFind(key);
+    if (it != exifCache_.constEnd()) return it.value();
+
+    const auto date = fp::infra::readPhotoDate(
+        (folderPath + QLatin1Char('/') + f.fileName).toStdString());
+    exifCache_.insert(key, date);
+    return date;
+}
 
 void PreviewWorker::compute(quint64 generation, const QString& templateText,
-                            const QString& folderName,
+                            const QString& folderPath,
                             const QList<FileEntry>& files) {
     if (currentGeneration_->load() != generation) return;
 
@@ -16,13 +36,14 @@ void PreviewWorker::compute(quint64 generation, const QString& templateText,
                          QString::fromUtf8(e.what()));
         return;
     }
+    const bool needsExif = tmpl->uses(fp::tmpl::Source::PhotoDate);
 
     std::vector<fp::plan::SourceFile> sources;
     sources.reserve(files.size());
-    const std::string folder = folderName.toStdString();
+    const std::string folder = QDir(folderPath).dirName().toStdString();
     long index = 0;
     for (const FileEntry& f : files) {
-        if ((index & 0xFF) == 0 && currentGeneration_->load() != generation)
+        if ((index & 0x3F) == 0 && currentGeneration_->load() != generation)
             return;
 
         fp::plan::SourceFile src;
@@ -37,7 +58,7 @@ void PreviewWorker::compute(quint64 generation, const QString& templateText,
             src.ctx.fileDate = fp::tmpl::DateTime{
                 d.year(), d.month(), d.day(), t.hour(), t.minute(), t.second()};
         }
-        // src.ctx.photoDate: EXIF reader arrives in milestone 7
+        if (needsExif) src.ctx.photoDate = photoDateFor(folderPath, f);
         sources.push_back(std::move(src));
     }
     if (currentGeneration_->load() != generation) return;
