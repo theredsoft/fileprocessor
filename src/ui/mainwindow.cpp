@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileSystemModel>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -24,6 +25,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTimer>
+#include <QTreeView>
 #include <QVBoxLayout>
 
 #include "core/template/template.h"
@@ -72,7 +74,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     qRegisterMetaType<QList<RenameOp>>();
 
     setWindowTitle(tr("FileProcessor"));
-    resize(900, 600);
+    resize(1280, 760);  // three panes need the extra width
 
     auto* editMenu = menuBar()->addMenu(tr("&Правка"));
     undoAction_ = editMenu->addAction(tr("Отменить последнее переименование"));
@@ -114,6 +116,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     layout->addWidget(errorLabel_);
 
     auto* splitter = new QSplitter(Qt::Horizontal);
+
+    auto* treeBox = new QGroupBox(tr("Папки"));
+    auto* treeLayout = new QVBoxLayout(treeBox);
+    fsModel_ = new QFileSystemModel(this);
+    fsModel_->setFilter(QDir::AllDirs | QDir::Drives | QDir::NoDotAndDotDot);
+    fsModel_->setRootPath(QString());  // watch the whole filesystem lazily
+    folderTree_ = new QTreeView();
+    folderTree_->setModel(fsModel_);
+    folderTree_->setHeaderHidden(true);
+    for (int c = 1; c < fsModel_->columnCount(); ++c)
+        folderTree_->setColumnHidden(c, true);  // name only — no size/date
+    treeLayout->addWidget(folderTree_);
+    splitter->addWidget(treeBox);
+
     auto makePane = [](const QString& title, QListView*& view) {
         auto* box = new QGroupBox(title);
         auto* boxLayout = new QVBoxLayout(box);
@@ -129,7 +145,19 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     previewModel_ = new PreviewListModel(this);
     currentView_->setModel(currentModel_);
     previewView_->setModel(previewModel_);
+    splitter->setStretchFactor(0, 1);
+    splitter->setStretchFactor(1, 2);
+    splitter->setStretchFactor(2, 2);
+    splitter->setSizes({280, 460, 460});
     layout->addWidget(splitter, 1);
+
+    connect(folderTree_->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex& current, const QModelIndex&) {
+                if (!current.isValid()) return;
+                const QString path = fsModel_->filePath(current);
+                if (path != folderCombo_->currentText().trimmed())
+                    folderCombo_->setCurrentText(path);
+            });
 
     auto* actionRow = new QHBoxLayout();
     applyButton_ = new QPushButton(tr("Применить"));
@@ -267,6 +295,13 @@ void MainWindow::startScan() {
     if (dirPath.isEmpty() || !QDir(dirPath).exists()) {
         statusBar()->showMessage(tr("Папка не выбрана"));
         return;
+    }
+    // Mirror the choice in the folder tree (combo edit, history, browse).
+    if (const QModelIndex idx = fsModel_->index(dirPath);
+        idx.isValid() && folderTree_->currentIndex() != idx) {
+        const QSignalBlocker blocker(folderTree_->selectionModel());
+        folderTree_->setCurrentIndex(idx);
+        folderTree_->scrollTo(idx);
     }
     statusBar()->showMessage(tr("Сканирование…"));
     QMetaObject::invokeMethod(
@@ -506,6 +541,7 @@ void MainWindow::setRunning(bool running) {
         taskbar_->clear();
     }
     folderCombo_->setEnabled(!running);
+    folderTree_->setEnabled(!running);
     templateCombo_->setEnabled(!running);
     applyButton_->setEnabled(!running && !pendingOps_.isEmpty());
     undoAction_->setEnabled(false);

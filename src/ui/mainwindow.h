@@ -13,11 +13,13 @@
 class QAction;
 class QCloseEvent;
 class QComboBox;
+class QFileSystemModel;
 class QLabel;
 class QListView;
 class QProgressBar;
 class QPushButton;
 class QTimer;
+class QTreeView;
 
 class FileListModel;
 class FolderScanner;
@@ -70,6 +72,8 @@ private:
 
     QComboBox* folderCombo_ = nullptr;
     QComboBox* templateCombo_ = nullptr;
+    QTreeView* folderTree_ = nullptr;
+    QFileSystemModel* fsModel_ = nullptr;
     QLabel* errorLabel_ = nullptr;
     QListView* currentView_ = nullptr;
     QListView* previewView_ = nullptr;
